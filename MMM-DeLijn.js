@@ -62,6 +62,10 @@ Module.register("MMM-DeLijn",{
 		var destination = this.config.destination.toLowerCase();
 		var direction = this.config.direction.toUpperCase();
 		return doorkomsten.filter(function(d) {
+			// cancelled trips are still listed, with status GESCHRAPT
+			if ((d.predictionStatussen || []).indexOf("GESCHRAPT") != -1) {
+				return false;
+			}
 			if (direction && d.richting != direction) {
 				return false;
 			}
