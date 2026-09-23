@@ -6,9 +6,14 @@ This is a module for the Magic Mirror. It loads live timings for a specific bus 
 
 ## Installation
 
-Go to [this page](https://data.delijn.be/) and make an account. Then go to [this page](https://data.delijn.be/products/5978abf6e8b4390cc83196ad) and subscribe. You will get an API key, replace it in the DL.js file together with the bus stop you want to load.
+Go to [this page](https://data.delijn.be/) and make an account. Then subscribe to the "Open Data Free" product. You will get an API key.
 
-Also change the $BUS_STOP variable to your closest busstop or the one you want to monitor. You can lookup the busstop nr by using [this website](https://www.delijn.be/en/haltes/)
+Look up your bus stop number (haltenummer) using [this website](https://www.delijn.be/en/haltes/). The entity number (entiteitnummer) is the region: 1 Antwerpen, 2 Oost-Vlaanderen, 3 Vlaams-Brabant, 4 Limburg, 5 West-Vlaanderen. It usually matches the first digit of the stop number.
+
+You can check both with curl before configuring the mirror:
+```
+curl -i -H "Ocp-Apim-Subscription-Key: YOUR_KEY" "https://api.delijn.be/DLKernOpenData/api/v1/haltes/3/300881/real-time"
+```
 
 Put the MMM-DeLijn module in your modules folder.
 
@@ -16,6 +21,11 @@ add this to your config file:
 ```
 {
     module: "MMM-DeLijn",
-	header: "Bus"
+    header: "Bus",
+    config: {
+        entity: 3,
+        busStop: "300881",
+        apiKey: "YOUR_KEY"
+    }
 }
 ```
