@@ -6,8 +6,11 @@ Module.register("MMM-DeLijn",{
 		busStop: "",           // haltenummer, e.g. "300881"
 		apiKey: "",            // Ocp-Apim-Subscription-Key from data.delijn.be
 		updateInterval: 30000, // ms
+		results: 3,            // number of buses to show
 		destination: "",       // only show buses whose destination contains this text (case-insensitive), e.g. "Brussel Noord"
-		direction: ""          // only show buses in this direction: "HEEN" or "TERUG"
+		direction: "",         // only show buses in this direction: "HEEN" or "TERUG"
+		destinationStop: "",   // optional haltenummer where you get off; used to show the travel time
+		destinationEntity: ""  // entiteitnummer of destinationStop, defaults to entity
 	},
 
 	start: function(){
@@ -19,24 +22,40 @@ Module.register("MMM-DeLijn",{
 		}, this.config.updateInterval);
 	},
 
+	fetchStop: function(entity, stop) {
+		var url = "https://api.delijn.be/DLKernOpenData/api/v1/haltes/" + entity + "/" + stop + "/real-time";
+		return fetch(url, {headers: {"Ocp-Apim-Subscription-Key": this.config.apiKey}})
+			.then(function(response) {
+				if (!response.ok) {
+					return response.text().then(function(text) {
+						throw new Error("status " + response.status + ": " + text);
+					});
+				}
+				return response.json();
+			})
+			.then(function(json) {
+				return json.halteDoorkomsten.length ? json.halteDoorkomsten[0].doorkomsten : [];
+			});
+	},
+
 	getInfo: function() {
 		var self = this;
-		var url = "https://api.delijn.be/DLKernOpenData/api/v1/haltes/" + this.config.entity + "/" + this.config.busStop + "/real-time";
-		var xmlhttp = new XMLHttpRequest();
-		xmlhttp.onreadystatechange = function() {
-			if (this.readyState == 4) {
-				if (this.status == 200) {
-					var myArr = JSON.parse(this.responseText);
-					self.val = self.filter(myArr.halteDoorkomsten[0].doorkomsten);
-					self.updateDom();
-				} else {
-					Log.error("MMM-DeLijn: request failed with status " + this.status + ": " + this.responseText);
-				}
-			}
-		};
-		xmlhttp.open("GET", url, true);
-		xmlhttp.setRequestHeader("Ocp-Apim-Subscription-Key", this.config.apiKey);
-		xmlhttp.send();
+		var requests = [this.fetchStop(this.config.entity, this.config.busStop)];
+		if (this.config.destinationStop) {
+			requests.push(this.fetchStop(this.config.destinationEntity || this.config.entity, this.config.destinationStop)
+				.catch(function(error) {
+					Log.error("MMM-DeLijn: destination stop request failed with " + error.message);
+					return [];
+				}));
+		}
+		Promise.all(requests)
+			.then(function(results) {
+				self.val = self.combine(self.filter(results[0]), results[1] || []);
+				self.updateDom();
+			})
+			.catch(function(error) {
+				Log.error("MMM-DeLijn: request failed with " + error.message);
+			});
 	},
 
 	filter: function(doorkomsten) {
@@ -56,33 +75,56 @@ Module.register("MMM-DeLijn",{
 		});
 	},
 
+	// real-timeTijdstip is missing when there is no live prediction; fall back to the schedule
+	time: function(d) {
+		return new Date(d['real-timeTijdstip'] || d.dienstregelingTijdstip);
+	},
+
+	// doorkomstId is "<date>_<entity><line>_<ritnummer>_<sequence>_<stop>"; the first three parts identify the trip
+	tripId: function(d) {
+		return d.doorkomstId.split("_").slice(0, 3).join("_");
+	},
+
+	// Pair each bus with its arrival at destinationStop (same trip) to get the travel time.
+	combine: function(doorkomsten, destinationDoorkomsten) {
+		var self = this;
+		var arrivals = {};
+		destinationDoorkomsten.forEach(function(d) {
+			arrivals[self.tripId(d)] = self.time(d);
+		});
+		return doorkomsten.slice(0, this.config.results).map(function(d) {
+			var departure = self.time(d);
+			var arrival = arrivals[self.tripId(d)];
+			return {
+				line: Number(d.lijnnummer),
+				departure: departure,
+				travelMinutes: arrival ? Math.round((arrival.getTime() - departure.getTime())/(1000*60)) : undefined
+			};
+		});
+	},
+
 	// Override dom generator.
 	getDom: function() {
 		var val = this.val;
-		let table = document.createElement('table');
-		table.className = "table table-bordered table-dark";
+		let wrapper = document.createElement('div');
+		wrapper.className = "MMM-DeLijn small";
 		if(val == undefined){
-			table.innerHTML = this.config.text;
-			return table;
+			wrapper.innerHTML = this.config.text;
+			return wrapper;
 		}
+		let now = new Date();
 		for(let i = 0; i < val.length; i++){
-			let row = document.createElement('tr');
-			let lijnnr = document.createElement('td');
-			lijnnr.innerHTML = Number(val[i].lijnnummer);
-			row.appendChild(lijnnr);
-			// real-timeTijdstip is missing when there is no live prediction; fall back to the schedule
-			let date = new Date(val[i]['real-timeTijdstip'] || val[i].dienstregelingTijdstip);
-			let now = new Date();
-			let tijd = document.createElement('td');
-			tijd.innerHTML = '' + date.getHours() + ':' + ("0" + date.getMinutes()).slice(-2);
-			row.appendChild(tijd);
-			let diff = document.createElement('td');
-			diff.innerHTML = Math.round((date.getTime() - now.getTime())/(1000*60));
-			row.appendChild(diff);
-
-			table.appendChild(row);
+			let minutes = Math.max(0, Math.round((val[i].departure.getTime() - now.getTime())/(1000*60)));
+			let text = minutes + 'm ' + val[i].line;
+			if(val[i].travelMinutes != undefined){
+				text += ' ' + val[i].travelMinutes + '⏱️';
+			}
+			let bus = document.createElement('span');
+			bus.className = "delijn-bus" + (i > 0 ? " dimmed" : "");
+			bus.innerHTML = text;
+			wrapper.appendChild(bus);
 		}
-		return table;
+		return wrapper;
 	},
 
 	getStyles: function() {
