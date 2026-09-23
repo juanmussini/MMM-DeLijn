@@ -2,6 +2,8 @@ Module.register("MMM-DeLijn",{
 	// Default module config.
 	defaults: {
 		text: "Loading...",
+		label: "B",            // first cell, like "Train" in MMM-NMBS-Connection
+		title: "",             // shown in the line-number box, e.g. "Brussels WTC"
 		entity: 3,             // entiteitnummer: 1 Antwerpen, 2 Oost-Vlaanderen, 3 Vlaams-Brabant, 4 Limburg, 5 West-Vlaanderen
 		busStop: "",           // haltenummer, e.g. "300881"
 		apiKey: "",            // Ocp-Apim-Subscription-Key from data.delijn.be
@@ -17,6 +19,9 @@ Module.register("MMM-DeLijn",{
 		var self = this;
 		this.val = undefined;
 		this.lineNames = {}; // "<entity>_<lijnnummer>" -> lijnnummerPubliek, e.g. "3_250" -> "R50"
+		this.lineColors = {}; // "<entity>_<lijnnummer>" -> {voorgrond, achtergrond, achtergrondRand} colour codes
+		this.colors = {}; // colour code -> hex, e.g. "LB" -> "AACCEE"
+		this.loadColors();
 		this.getInfo();
 		setInterval(function() {
 			self.getInfo();
@@ -64,6 +69,20 @@ Module.register("MMM-DeLijn",{
 			});
 	},
 
+	loadColors: function() {
+		var self = this;
+		this.fetchJson("kleuren")
+			.then(function(json) {
+				json.kleuren.forEach(function(kleur) {
+					self.colors[kleur.code] = kleur.hex;
+				});
+				self.updateDom();
+			})
+			.catch(function(error) {
+				Log.error("MMM-DeLijn: colour list request failed with " + error.message);
+			});
+	},
+
 	// Look up the public line name (e.g. "R50" for internal line 250) once per line.
 	loadLineNames: function(doorkomsten) {
 		var self = this;
@@ -82,6 +101,18 @@ Module.register("MMM-DeLijn",{
 				})
 				.catch(function(error) {
 					Log.error("MMM-DeLijn: line " + key + " lookup failed with " + error.message);
+				});
+			self.fetchJson("lijnen/" + d.entiteitnummer + "/" + d.lijnnummer + "/lijnkleuren")
+				.then(function(json) {
+					self.lineColors[key] = {
+						voorgrond: json.voorgrond && json.voorgrond.code,
+						achtergrond: json.achtergrond && json.achtergrond.code,
+						achtergrondRand: json.achtergrondRand && json.achtergrondRand.code
+					};
+					self.updateDom();
+				})
+				.catch(function(error) {
+					Log.error("MMM-DeLijn: line " + key + " colour lookup failed with " + error.message);
 				});
 		});
 	},
@@ -143,8 +174,8 @@ Module.register("MMM-DeLijn",{
 	getDom: function() {
 		var val = this.val;
 		let wrapper = document.createElement('div');
-		wrapper.className = "MMM-DeLijn small";
 		if(val == undefined){
+			wrapper.className = "MMM-DeLijn dimmed light small";
 			wrapper.innerHTML = this.config.text;
 			return wrapper;
 		}
@@ -152,18 +183,60 @@ Module.register("MMM-DeLijn",{
 		val = val.filter(function(bus) {
 			return bus.departure.getTime() > now.getTime();
 		}).slice(0, this.config.results);
+
+		// Same grid layout and class names as MMM-NMBS-Connection: label, line-number box, route name, then one cell per bus
+		wrapper.className = "stib-table small MMM-DeLijn";
+		wrapper.style.gridTemplateColumns = "auto auto 1fr repeat(" + val.length + ", auto)";
+
+		let label = document.createElement('span');
+		label.className = "stib-stopname dimmed";
+		label.innerHTML = this.config.label;
+		wrapper.appendChild(label);
+
+		let lineContainer = document.createElement('div');
+		lineContainer.className = "stib-linenumber-container";
+		let lineNumber = document.createElement('span');
+		lineNumber.className = "stib-linenumber";
+		lineNumber.innerHTML = this.config.title;
+		lineContainer.appendChild(lineNumber);
+		let lineIcon = document.createElement('span');
+		lineIcon.className = "stib-linenumber-icon";
+		lineContainer.appendChild(lineIcon);
+		wrapper.appendChild(lineContainer);
+
+		let routeName = document.createElement('span');
+		routeName.className = "stib-routename";
+		wrapper.appendChild(routeName);
+
 		for(let i = 0; i < val.length; i++){
 			let minutes = Math.round((val[i].departure.getTime() - now.getTime())/(1000*60));
-			let text = minutes + 'm ' + (this.lineNames[val[i].lineKey] || val[i].line);
+			let bus = document.createElement('div');
+			bus.className = "stib-times" + (i > 0 ? " dimmed" : "");
+			let busText = document.createElement('span');
+			busText.appendChild(document.createTextNode(minutes + 'm '));
+			busText.appendChild(this.lineBadge(val[i]));
 			if(val[i].travelMinutes != undefined){
-				text += ' ' + val[i].travelMinutes + '⏱️';
+				busText.appendChild(document.createTextNode(' ' + val[i].travelMinutes + '⏱️'));
 			}
-			let bus = document.createElement('span');
-			bus.className = "delijn-bus" + (i > 0 ? " dimmed" : "");
-			bus.innerHTML = text;
+			bus.appendChild(busText);
 			wrapper.appendChild(bus);
 		}
 		return wrapper;
+	},
+
+	// Line name in the official De Lijn colours, once both the colour list and the line's colour codes have loaded
+	lineBadge: function(bus) {
+		let badge = document.createElement('span');
+		badge.className = "delijn-line";
+		badge.innerHTML = this.lineNames[bus.lineKey] || bus.line;
+		let codes = this.lineColors[bus.lineKey];
+		let colors = this.colors;
+		if(codes && colors[codes.achtergrond]){
+			badge.style.backgroundColor = "#" + colors[codes.achtergrond];
+			badge.style.color = "#" + (colors[codes.voorgrond] || "FFFFFF");
+			badge.style.borderColor = "#" + (colors[codes.achtergrondRand] || colors[codes.achtergrond]);
+		}
+		return badge;
 	},
 
 	getStyles: function() {
