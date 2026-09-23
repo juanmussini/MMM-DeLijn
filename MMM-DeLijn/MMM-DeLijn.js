@@ -5,7 +5,9 @@ Module.register("MMM-DeLijn",{
 		entity: 3,             // entiteitnummer: 1 Antwerpen, 2 Oost-Vlaanderen, 3 Vlaams-Brabant, 4 Limburg, 5 West-Vlaanderen
 		busStop: "",           // haltenummer, e.g. "300881"
 		apiKey: "",            // Ocp-Apim-Subscription-Key from data.delijn.be
-		updateInterval: 30000  // ms
+		updateInterval: 30000, // ms
+		destination: "",       // only show buses whose destination contains this text (case-insensitive), e.g. "Brussel Noord"
+		direction: ""          // only show buses in this direction: "HEEN" or "TERUG"
 	},
 
 	start: function(){
@@ -25,7 +27,7 @@ Module.register("MMM-DeLijn",{
 			if (this.readyState == 4) {
 				if (this.status == 200) {
 					var myArr = JSON.parse(this.responseText);
-					self.val = myArr.halteDoorkomsten[0].doorkomsten;
+					self.val = self.filter(myArr.halteDoorkomsten[0].doorkomsten);
 					self.updateDom();
 				} else {
 					Log.error("MMM-DeLijn: request failed with status " + this.status + ": " + this.responseText);
@@ -35,6 +37,23 @@ Module.register("MMM-DeLijn",{
 		xmlhttp.open("GET", url, true);
 		xmlhttp.setRequestHeader("Ocp-Apim-Subscription-Key", this.config.apiKey);
 		xmlhttp.send();
+	},
+
+	filter: function(doorkomsten) {
+		var destination = this.config.destination.toLowerCase();
+		var direction = this.config.direction.toUpperCase();
+		return doorkomsten.filter(function(d) {
+			if (direction && d.richting != direction) {
+				return false;
+			}
+			if (destination) {
+				var names = [d.bestemming, d.bestemmingKort, d.plaatsBestemming].join("|").toLowerCase();
+				if (names.indexOf(destination) == -1) {
+					return false;
+				}
+			}
+			return true;
+		});
 	},
 
 	// Override dom generator.

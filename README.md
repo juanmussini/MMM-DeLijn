@@ -25,7 +25,9 @@ add this to your config file:
     config: {
         entity: 3,
         busStop: "300881",
-        apiKey: "YOUR_KEY"
+        apiKey: "YOUR_KEY",
+        destination: "Brussel Noord", // optional: only buses whose destination contains this text
+        direction: "TERUG"            // optional: only "HEEN" or "TERUG" buses
     }
 }
 ```
