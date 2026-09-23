@@ -16,15 +16,15 @@ Module.register("MMM-DeLijn",{
 	start: function(){
 		var self = this;
 		this.val = undefined;
+		this.lineNames = {}; // "<entity>_<lijnnummer>" -> lijnnummerPubliek, e.g. "3_250" -> "R50"
 		this.getInfo();
 		setInterval(function() {
 			self.getInfo();
 		}, this.config.updateInterval);
 	},
 
-	fetchStop: function(entity, stop) {
-		var url = "https://api.delijn.be/DLKernOpenData/api/v1/haltes/" + entity + "/" + stop + "/real-time";
-		return fetch(url, {headers: {"Ocp-Apim-Subscription-Key": this.config.apiKey}})
+	fetchJson: function(path) {
+		return fetch("https://api.delijn.be/DLKernOpenData/api/v1/" + path, {headers: {"Ocp-Apim-Subscription-Key": this.config.apiKey}})
 			.then(function(response) {
 				if (!response.ok) {
 					return response.text().then(function(text) {
@@ -32,7 +32,11 @@ Module.register("MMM-DeLijn",{
 					});
 				}
 				return response.json();
-			})
+			});
+	},
+
+	fetchStop: function(entity, stop) {
+		return this.fetchJson("haltes/" + entity + "/" + stop + "/real-time")
 			.then(function(json) {
 				return json.halteDoorkomsten.length ? json.halteDoorkomsten[0].doorkomsten : [];
 			});
@@ -50,12 +54,36 @@ Module.register("MMM-DeLijn",{
 		}
 		Promise.all(requests)
 			.then(function(results) {
-				self.val = self.combine(self.filter(results[0]), results[1] || []);
+				var doorkomsten = self.filter(results[0]);
+				self.val = self.combine(doorkomsten, results[1] || []);
 				self.updateDom();
+				self.loadLineNames(doorkomsten);
 			})
 			.catch(function(error) {
 				Log.error("MMM-DeLijn: request failed with " + error.message);
 			});
+	},
+
+	// Look up the public line name (e.g. "R50" for internal line 250) once per line.
+	loadLineNames: function(doorkomsten) {
+		var self = this;
+		doorkomsten.forEach(function(d) {
+			var key = d.entiteitnummer + "_" + d.lijnnummer;
+			if (key in self.lineNames) {
+				return;
+			}
+			self.lineNames[key] = undefined; // mark as requested; a failed lookup keeps showing the internal number
+			self.fetchJson("lijnen/" + d.entiteitnummer + "/" + d.lijnnummer)
+				.then(function(json) {
+					if (json.lijnnummerPubliek) {
+						self.lineNames[key] = json.lijnnummerPubliek;
+						self.updateDom();
+					}
+				})
+				.catch(function(error) {
+					Log.error("MMM-DeLijn: line " + key + " lookup failed with " + error.message);
+				});
+		});
 	},
 
 	filter: function(doorkomsten) {
@@ -102,6 +130,7 @@ Module.register("MMM-DeLijn",{
 			var arrival = arrivals[self.tripId(d)];
 			return {
 				line: Number(d.lijnnummer),
+				lineKey: d.entiteitnummer + "_" + d.lijnnummer,
 				departure: departure,
 				travelMinutes: arrival ? Math.round((arrival.getTime() - departure.getTime())/(1000*60)) : undefined
 			};
@@ -125,7 +154,7 @@ Module.register("MMM-DeLijn",{
 		}).slice(0, this.config.results);
 		for(let i = 0; i < val.length; i++){
 			let minutes = Math.round((val[i].departure.getTime() - now.getTime())/(1000*60));
-			let text = minutes + 'm ' + val[i].line;
+			let text = minutes + 'm ' + (this.lineNames[val[i].lineKey] || val[i].line);
 			if(val[i].travelMinutes != undefined){
 				text += ' ' + val[i].travelMinutes + '⏱️';
 			}
