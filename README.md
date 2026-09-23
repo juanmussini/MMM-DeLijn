@@ -15,7 +15,11 @@ You can check both with curl before configuring the mirror:
 curl -i -H "Ocp-Apim-Subscription-Key: YOUR_KEY" "https://api.delijn.be/DLKernOpenData/api/v1/haltes/3/300881/real-time"
 ```
 
-Put the MMM-DeLijn module in your modules folder.
+Clone this repository into your MagicMirror modules folder:
+```
+cd ~/MagicMirror/modules
+git clone https://github.com/juanmussini/MMM-DeLijn.git
+```
 
 add this to your config file:
 ```
