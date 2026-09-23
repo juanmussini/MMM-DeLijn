@@ -92,7 +92,8 @@ Module.register("MMM-DeLijn",{
 		destinationDoorkomsten.forEach(function(d) {
 			arrivals[self.tripId(d)] = self.time(d);
 		});
-		return doorkomsten.slice(0, this.config.results).map(function(d) {
+		// Keep every bus (sorted by predicted time) so getDom can drop the ones that have passed and still show `results` buses
+		return doorkomsten.map(function(d) {
 			var departure = self.time(d);
 			var arrival = arrivals[self.tripId(d)];
 			return {
@@ -100,6 +101,8 @@ Module.register("MMM-DeLijn",{
 				departure: departure,
 				travelMinutes: arrival ? Math.round((arrival.getTime() - departure.getTime())/(1000*60)) : undefined
 			};
+		}).sort(function(a, b) {
+			return a.departure.getTime() - b.departure.getTime();
 		});
 	},
 
@@ -113,8 +116,11 @@ Module.register("MMM-DeLijn",{
 			return wrapper;
 		}
 		let now = new Date();
+		val = val.filter(function(bus) {
+			return bus.departure.getTime() > now.getTime();
+		}).slice(0, this.config.results);
 		for(let i = 0; i < val.length; i++){
-			let minutes = Math.max(0, Math.round((val[i].departure.getTime() - now.getTime())/(1000*60)));
+			let minutes = Math.round((val[i].departure.getTime() - now.getTime())/(1000*60));
 			let text = minutes + 'm ' + val[i].line;
 			if(val[i].travelMinutes != undefined){
 				text += ' ' + val[i].travelMinutes + '⏱️';
