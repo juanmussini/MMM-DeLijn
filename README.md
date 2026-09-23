@@ -1,6 +1,6 @@
 # MMM-DeLijn
 
-This is a module for the Magic Mirror. It loads live timings for a specific bus stop. Each bus is shown as `7m 250 14⏱️`: minutes until the bus arrives, the line number, and the travel time to `destinationStop` (if set).
+This is a module for the Magic Mirror. It loads live timings for a specific bus stop. Each bus is shown as `7m 250 14⏱️`: minutes until the bus arrives, the public line number (e.g. R50), and the travel time to `destinationStop` (if set).
 
 ![MMM-DeLijn](MMM-DeLijn.jpg "MMM-DeLijn")
 
