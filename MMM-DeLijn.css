@@ -1,5 +1,7 @@
-.MMM-DeLijn {
-	display: flex;
-	flex-wrap: wrap;
-	column-gap: 15px;
+.MMM-DeLijn.stib-table {
+	display: grid;
+	grid-template-columns: auto auto 1fr auto auto;
+	column-gap: 10px;
+	row-gap: 2px;
+	align-items: center;
 }

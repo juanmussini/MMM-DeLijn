@@ -2,6 +2,8 @@ Module.register("MMM-DeLijn",{
 	// Default module config.
 	defaults: {
 		text: "Loading...",
+		label: "B",            // first cell, like "Train" in MMM-NMBS-Connection
+		title: "",             // shown in the line-number box, e.g. "Brussels WTC"
 		entity: 3,             // entiteitnummer: 1 Antwerpen, 2 Oost-Vlaanderen, 3 Vlaams-Brabant, 4 Limburg, 5 West-Vlaanderen
 		busStop: "",           // haltenummer, e.g. "300881"
 		apiKey: "",            // Ocp-Apim-Subscription-Key from data.delijn.be
@@ -143,8 +145,8 @@ Module.register("MMM-DeLijn",{
 	getDom: function() {
 		var val = this.val;
 		let wrapper = document.createElement('div');
-		wrapper.className = "MMM-DeLijn small";
 		if(val == undefined){
+			wrapper.className = "MMM-DeLijn dimmed light small";
 			wrapper.innerHTML = this.config.text;
 			return wrapper;
 		}
@@ -152,15 +154,42 @@ Module.register("MMM-DeLijn",{
 		val = val.filter(function(bus) {
 			return bus.departure.getTime() > now.getTime();
 		}).slice(0, this.config.results);
+
+		// Same grid layout and class names as MMM-NMBS-Connection: label, line-number box, route name, then one cell per bus
+		wrapper.className = "stib-table small MMM-DeLijn";
+		wrapper.style.gridTemplateColumns = "auto auto 1fr repeat(" + val.length + ", auto)";
+
+		let label = document.createElement('span');
+		label.className = "stib-stopname dimmed";
+		label.innerHTML = this.config.label;
+		wrapper.appendChild(label);
+
+		let lineContainer = document.createElement('div');
+		lineContainer.className = "stib-linenumber-container";
+		let lineNumber = document.createElement('span');
+		lineNumber.className = "stib-linenumber";
+		lineNumber.innerHTML = this.config.title;
+		lineContainer.appendChild(lineNumber);
+		let lineIcon = document.createElement('span');
+		lineIcon.className = "stib-linenumber-icon";
+		lineContainer.appendChild(lineIcon);
+		wrapper.appendChild(lineContainer);
+
+		let routeName = document.createElement('span');
+		routeName.className = "stib-routename";
+		wrapper.appendChild(routeName);
+
 		for(let i = 0; i < val.length; i++){
 			let minutes = Math.round((val[i].departure.getTime() - now.getTime())/(1000*60));
 			let text = minutes + 'm ' + (this.lineNames[val[i].lineKey] || val[i].line);
 			if(val[i].travelMinutes != undefined){
 				text += ' ' + val[i].travelMinutes + '⏱️';
 			}
-			let bus = document.createElement('span');
-			bus.className = "delijn-bus" + (i > 0 ? " dimmed" : "");
-			bus.innerHTML = text;
+			let bus = document.createElement('div');
+			bus.className = "stib-times" + (i > 0 ? " dimmed" : "");
+			let busText = document.createElement('span');
+			busText.innerHTML = text;
+			bus.appendChild(busText);
 			wrapper.appendChild(bus);
 		}
 		return wrapper;

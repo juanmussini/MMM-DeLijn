@@ -27,6 +27,8 @@ add this to your config file:
     module: "MMM-DeLijn",
     header: "Bus",
     config: {
+        label: "B",                   // optional: first cell, like "Train" in MMM-NMBS-Connection
+        title: "Brussels WTC",        // optional: shown in the line-number box
         entity: 3,
         busStop: "300881",
         apiKey: "YOUR_KEY",
