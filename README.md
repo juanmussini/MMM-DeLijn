@@ -1,6 +1,6 @@
 # MMM-DeLijn
 
-This is a module for the Magic Mirror. It loads live timings for a specific bus stop. (bus nr, estimated time of arrival, minutes from now till ETA)
+This is a module for the Magic Mirror. It loads live timings for a specific bus stop. Each bus is shown as `7m 250 14⏱️`: minutes until the bus arrives, the line number, and the travel time to `destinationStop` (if set).
 
 ![MMM-DeLijn](MMM-DeLijn.jpg "MMM-DeLijn")
 
@@ -31,7 +31,9 @@ add this to your config file:
         busStop: "300881",
         apiKey: "YOUR_KEY",
         destination: "Brussel Noord", // optional: only buses whose destination contains this text
-        direction: "TERUG"            // optional: only "HEEN" or "TERUG" buses
+        direction: "TERUG",           // optional: only "HEEN" or "TERUG" buses
+        results: 3,                   // optional: number of buses to show
+        destinationStop: "123456"     // optional: stop number where you get off, to show the travel time
     }
 }
 ```
